@@ -6,6 +6,21 @@ import {useCombobox} from '../use-combobox'
 import {getItems} from '../workerized-filter-cities'
 import {useAsync, useForceRerender} from '../utils'
 
+function shallowEqual(object1, object2) {
+  const keys1 = Object.keys(object1);
+  const keys2 = Object.keys(object2);
+  if (keys1.length !== keys2.length) {
+    return false;
+  }
+  for (let key of keys1) {
+    if (object1[key] !== object2[key]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+
 function Menu({
   items,
   getMenuProps,
@@ -30,7 +45,7 @@ function Menu({
     </ul>
   )
 }
-// 🐨 Memoize the Menu here using React.memo
+Menu = React.memo(Menu)
 
 function ListItem({
   getItemProps,
@@ -56,7 +71,18 @@ function ListItem({
     />
   )
 }
-// 🐨 Memoize the ListItem here using React.memo
+ListItem = React.memo(ListItem, listItemIsEqual)
+
+function listItemIsEqual(prevProps, nextProps) {
+  const { highlightedIndex: prevHighlightedIndex, ...prevPropsWithoutHighlightedIndex } = prevProps
+  const { highlightedIndex: nextHighlightedIndex, ...nextPropsWithoutHighlightedIndex } = nextProps
+
+  const wasHighlighted = prevHighlightedIndex === prevProps.index
+  const isHighlighted = nextHighlightedIndex === nextProps.index
+  const highlightingSame = wasHighlighted === isHighlighted
+  
+  return (shallowEqual(prevPropsWithoutHighlightedIndex, nextPropsWithoutHighlightedIndex) && highlightingSame)
+}
 
 function App() {
   const forceRerender = useForceRerender()
@@ -66,7 +92,10 @@ function App() {
   React.useEffect(() => {
     run(getItems(inputValue))
   }, [inputValue, run])
-  const items = allItems.slice(0, 100)
+
+  const items = React.useMemo(() => {
+    return allItems.slice(0, 100)
+  }, [allItems]) 
 
   const {
     selectedItem,

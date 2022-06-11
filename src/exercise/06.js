@@ -12,6 +12,7 @@ import {
 
 const AppStateContext = React.createContext()
 const AppDispatchContext = React.createContext()
+const DogContext = React.createContext()
 
 const initialGrid = Array.from({length: 100}, () =>
   Array.from({length: 100}, () => Math.random() * 100),
@@ -19,11 +20,6 @@ const initialGrid = Array.from({length: 100}, () =>
 
 function appReducer(state, action) {
   switch (action.type) {
-    // we're no longer managing the dogName state in our reducer
-    // 💣 remove this case
-    case 'TYPED_IN_DOG_INPUT': {
-      return {...state, dogName: action.dogName}
-    }
     case 'UPDATE_GRID_CELL': {
       return {...state, grid: updateGridCellState(state.grid, action)}
     }
@@ -35,11 +31,18 @@ function appReducer(state, action) {
     }
   }
 }
+    
+function DogProvider({ children }) {
+  const [dogName, setDogName] = React.useState('')
+  return (
+    <DogContext.Provider value={[dogName, setDogName]}>
+      {children}
+    </DogContext.Provider>
+  )
+}
 
 function AppProvider({children}) {
   const [state, dispatch] = React.useReducer(appReducer, {
-    // 💣 remove the dogName state because we're no longer managing that
-    dogName: '',
     grid: initialGrid,
   })
   return (
@@ -49,6 +52,14 @@ function AppProvider({children}) {
       </AppDispatchContext.Provider>
     </AppStateContext.Provider>
   )
+}
+  
+function useDogState() {
+  const context = React.useContext(DogContext)
+  if (!context) {
+    throw new Error('useDogState must be used within a DogProvider')
+  }
+  return context
 }
 
 function useAppState() {
@@ -85,11 +96,17 @@ function Grid() {
 }
 Grid = React.memo(Grid)
 
-function Cell({row, column}) {
-  const state = useAppState()
-  const cell = state.grid[row][column]
+function withStateSlice(Comp, stateSelector) {
+  return function(props) {
+    const state = useAppState()
+    const slice = stateSelector(state, props)
+    return <Comp {...Comp.props} state={slice} />
+  }
+}
+
+function Cell({ state: cell, row, column }) {
   const dispatch = useAppDispatch()
-  const handleClick = () => dispatch({type: 'UPDATE_GRID_CELL', row, column})
+  const handleClick = () => dispatch({type: 'UPDATE_GRID_CELL', row, column}) 
   return (
     <button
       className="cell"
@@ -103,19 +120,14 @@ function Cell({row, column}) {
     </button>
   )
 }
-Cell = React.memo(Cell)
+Cell = withStateSlice(Cell, (state, props) => state.grid[props.row][props.column])
 
 function DogNameInput() {
-  // 🐨 replace the useAppState and useAppDispatch with a normal useState here
-  // to manage the dogName locally within this component
-  const state = useAppState()
-  const dispatch = useAppDispatch()
-  const {dogName} = state
+  const [dogName, setDogName] = useDogState()
 
   function handleChange(event) {
     const newDogName = event.target.value
-    // 🐨 change this to call your state setter that you get from useState
-    dispatch({type: 'TYPED_IN_DOG_INPUT', dogName: newDogName})
+    setDogName(newDogName)
   }
 
   return (
@@ -141,10 +153,12 @@ function App() {
     <div className="grid-app">
       <button onClick={forceRerender}>force rerender</button>
       <AppProvider>
+        <DogProvider>
         <div>
           <DogNameInput />
           <Grid />
         </div>
+        </DogProvider>
       </AppProvider>
     </div>
   )
